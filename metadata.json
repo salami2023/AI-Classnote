@@ -1,0 +1,6 @@
+{
+  "name": "Class Notes & Exam Generator",
+  "description": "AI-powered structured class notes, study guides, class activities, homework, and exam question generator for Beacon Hill Schools (Nursery, Primary, and Secondary).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
