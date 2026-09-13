@@ -82,10 +82,10 @@ app.post("/api/generate-notes", async (req: Request, res: Response) => {
       topic,
       content,
       academicLevel, // 'nursery' | 'primary' | 'secondary'
-      subLevel,      // e.g. 'Reception 1', 'Basic 4', 'JSS 2', etc.
-      periods = 2,
+      subLevel,      // e.g. 'Nursery 1 (Age 3-4)', 'Primary 4 (Grade 4)', 'Senior Secondary (Grade 10-12)'
       duration = "45 mins",
       tone = "engaging",
+      numberOfPeriods = 2,
       customInstructions = "",
     } = req.body;
 
@@ -93,7 +93,7 @@ app.post("/api/generate-notes", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Subject and Topic are required." });
     }
 
-    const periodsCount = Math.max(1, Math.min(8, parseInt(String(periods), 10) || 1));
+    const validPeriods = Math.min(Math.max(parseInt(String(numberOfPeriods)) || 2, 1), 6);
 
     const ai = getAI();
 
@@ -134,7 +134,8 @@ Create a comprehensive, structured, and easy-to-read CLASS NOTES & STUDY GUIDE f
 Subject: ${subject}
 Topic: ${topic}
 Target Class / Academic Level: ${academicLevel.toUpperCase()} (${subLevel || "Standard level"})
-Allocated Periods: ${periodsCount} teaching period(s) (${duration} per period)
+Lesson Duration: ${duration} per period
+Total Allocated Teaching Periods: ${validPeriods} Period(s)
 Preferred Teaching Style: ${tone}
 Teacher's Source Content / Curriculum Notes:
 """
@@ -143,24 +144,24 @@ ${content || "No raw notes provided. Generate a complete, high-quality, syllabus
 Additional Teacher Instructions: ${customInstructions || "None"}
 
 CRITICAL REQUIREMENTS:
-1. MANDATORY DIVISION INTO EXACTLY ${periodsCount} TEACHING PERIOD(S):
-   The teacher has specified that this topic will be taught across ${periodsCount} period(s).
-   You MUST divide the structured class notes (the 'sections' array) into EXACTLY ${periodsCount} sections, where each section corresponds strictly to one teaching period:
-   - Section 1 must cover Period 1: foundational concepts, definitions, introductory principles.
-   ${periodsCount >= 2 ? `- Section 2 must cover Period 2: deeper breakdown, types, classifications, or practical rules.` : ''}
-   ${periodsCount >= 3 ? `- Section 3 (and subsequent sections): must cover subsequent periods (Period 3 onward): real-life applications, problem solving, analysis, or review.` : ''}
-   Each section in 'sections' MUST have:
-   - period: ${periodsCount === 1 ? '1' : 'sequential integer (1, 2, ... up to ' + periodsCount + ')'}
-   - periodTitle: e.g. "Period 1: [Subtopic Title]", "Period 2: [Subtopic Title]"
-   - title: Clean subtopic or focus title for that period
-   - explanationBulletPoints: Clear, easy-to-read bullet points strictly intended for teaching and board copying during that specific period
-   - everydayAnalogyOrExample: A relatable real-life analogy or concrete example for this period
-   - teacherTipOrBoardPrompt: A practical board illustration or teaching tip for this period
+1. PERIOD-BASED DIVISION: The topic has been allocated exactly ${validPeriods} teaching period(s).
+   You MUST divide the core lesson content into exactly ${validPeriods} distinct, sequential teaching period sections (Period 1${validPeriods > 1 ? ` through Period ${validPeriods}` : ''}). Each period represents a focused, complete instructional session within the overarching topic.
+   - Section 1: periodNumber = 1, periodTitle = "Period 1: [Specific Core Sub-topic Focus]"
+   ${validPeriods > 1 ? `- Subsequent sections: periodNumber = 2 to ${validPeriods}, each with a descriptive periodTitle, subTopics list, focused bullet-point explanations, everyday analogy, and board prompt.` : ''}
+   - For every period section:
+     * periodNumber: 1, 2, ... up to ${validPeriods}
+     * periodTitle: e.g. "Period 1: Introduction to Matter & Three Physical States"
+     * title: concise core sub-topic name
+     * subTopics: 2 to 4 specific sub-topics/focus areas covered in this period
+     * explanationBulletPoints: simple, student-friendly notes written strictly in bullet points
+     * everydayAnalogyOrExample: vivid everyday analogy to anchor comprehension
+     * teacherTipOrBoardPrompt: blackboard layout recommendation or thought-provoking interactive prompt
 2. ALWAYS present notes in simple and basic terms so students easily understand without feeling overwhelmed.
 3. ALWAYS use BULLET POINTS for all explanatory sections to ensure high readability, scannability, and ease of board copying.
 4. INCLUDE hands-on, realistic CLASS ACTIVITIES with step-by-step instructions.
-5. INCLUDE structured HOMEWORK that reinforces the lesson.
+5. INCLUDE structured HOMEWORK that reinforces the lesson across the teaching periods.
 6. Provide learning objectives, key vocabulary with simple definitions, bite-sized lesson sections, and a student summary checklist.
+7. INCLUDE EDUCATIONAL DIAGRAM SPECIFICATION: Diagrams and images are essential lesson aids for teachers. Provide a 'diagramSpec' with clean, educational SVG markup (viewBox='0 0 800 500', clear labels, arrows, shapes, vibrant educational colors), title, caption, keyLabels, and a teaching board prompt.
 
 ${levelInstruction}
 
@@ -170,7 +171,7 @@ Generate a valid JSON object matching the requested schema strictly.`;
       model: "gemini-3.8-flash",
       contents: prompt,
       config: {
-        systemInstruction: "You are an expert instructional designer and teacher assistant who produces clear, pedagogical, structured class notes for educators. Always write in simple, direct language formatted in bullet points, and strictly divide the class notes into the exact number of teaching periods requested.",
+        systemInstruction: "You are an expert instructional designer and teacher assistant who produces clear, pedagogical, structured class notes divided into discrete teaching periods for educators. Always write in simple, direct language formatted in bullet points. Provide high-quality educational diagrams where appropriate.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -180,9 +181,10 @@ Generate a valid JSON object matching the requested schema strictly.`;
             academicLevel: { type: Type.STRING },
             subLevel: { type: Type.STRING },
             duration: { type: Type.STRING },
-            periodsCount: { type: Type.INTEGER, description: "Total number of periods for this lesson topic" },
+            numberOfPeriods: { type: Type.INTEGER, description: "Total number of teaching periods allocated to this topic (1 to 6)" },
+            periodAllocationSummary: { type: Type.STRING, description: "e.g. '3 Teaching Periods (45 mins each)'" },
             targetAgeGroup: { type: Type.STRING },
-            overview: { type: Type.STRING, description: "A simple 2-3 sentence overview of what the lesson teaches." },
+            overview: { type: Type.STRING, description: "A simple 2-3 sentence overview of what the lesson teaches across the periods." },
             learningObjectives: {
               type: Type.ARRAY,
               items: { type: Type.STRING },
@@ -200,23 +202,44 @@ Generate a valid JSON object matching the requested schema strictly.`;
                 required: ["term", "simpleDefinition"],
               },
             },
+            diagramSpec: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                caption: { type: Type.STRING },
+                diagramType: { type: Type.STRING, description: "e.g. Science Schematic, Process Cycle, Anatomy Model, Flowchart, Early Years Visual Aid" },
+                keyLabels: {
+                  type: Type.ARRAY,
+                  items: { type: Type.STRING },
+                  description: "Key labeled items in the diagram (e.g. 1. Evaporation, 2. Condensation, etc.)",
+                },
+                teachingPrompt: { type: Type.STRING, description: "Classroom board prompt or discussion question for teachers" },
+                svgMarkup: { type: Type.STRING, description: "Full clean valid SVG code (viewBox='0 0 800 500', shapes, arrows, text, colors) illustrating the topic" },
+              },
+              description: "Visual lesson aid diagram specification for this topic.",
+            },
             sections: {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  period: { type: Type.INTEGER, description: "Period number (1, 2, ...)" },
-                  periodTitle: { type: Type.STRING, description: "Title with period indicator, e.g. 'Period 1: Introduction and Definition'" },
-                  title: { type: Type.STRING, description: "Subtopic or lesson focus for this period" },
+                  periodNumber: { type: Type.INTEGER, description: "The period number: 1, 2, 3, etc." },
+                  periodTitle: { type: Type.STRING, description: "e.g. 'Period 1: States of Matter & Molecular Structure'" },
+                  title: { type: Type.STRING, description: "Core sub-topic for this teaching period." },
+                  subTopics: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                    description: "2-4 key sub-topics/focus areas covered in this period",
+                  },
                   explanationBulletPoints: {
                     type: Type.ARRAY,
                     items: { type: Type.STRING },
-                    description: "Key concepts explained strictly in clean, easy-to-read bullet points for this period.",
+                    description: "Key concepts explained strictly in clean, easy-to-read bullet points.",
                   },
                   everydayAnalogyOrExample: { type: Type.STRING },
                   teacherTipOrBoardPrompt: { type: Type.STRING },
                 },
-                required: ["title", "explanationBulletPoints"],
+                required: ["periodNumber", "periodTitle", "title", "explanationBulletPoints"],
               },
             },
             classActivities: {
@@ -276,25 +299,75 @@ Generate a valid JSON object matching the requested schema strictly.`;
 
     const rawText = response.text || "{}";
     const data = JSON.parse(rawText);
-
-    // Ensure periodsCount and section period assignments are consistent
-    data.periodsCount = data.periodsCount || periodsCount;
-    if (Array.isArray(data.sections)) {
-      data.sections = data.sections.map((sec: any, idx: number) => {
-        const periodNum = sec.period || idx + 1;
-        return {
-          ...sec,
-          period: periodNum,
-          periodTitle: sec.periodTitle || `Period ${periodNum}: ${sec.title || 'Lesson Notes'}`,
-        };
-      });
-    }
-
     return res.json(data);
   } catch (error: any) {
     console.error("Error generating notes:", error);
     return res.status(500).json({
       error: "Failed to generate class notes.",
+      details: error?.message || String(error),
+    });
+  }
+});
+
+// Endpoint: Generate dedicated Lesson Aid Diagram (SVG specification to be converted to PNG)
+app.post("/api/generate-diagram", async (req: Request, res: Response) => {
+  try {
+    const {
+      topic,
+      subject,
+      academicLevel = "primary",
+      subLevel = "",
+      diagramPrompt = "",
+    } = req.body;
+
+    if (!topic || !subject) {
+      return res.status(400).json({ error: "Topic and subject are required." });
+    }
+
+    const ai = getAI();
+    const prompt = `You are a professional educational graphic designer and teacher assistant.
+Design a comprehensive, beautifully styled, and easy-to-read EDUCATIONAL SVG DIAGRAM to act as an indispensable lesson aid.
+
+Subject: ${subject}
+Topic: ${topic}
+Academic Level: ${academicLevel} (${subLevel || "Standard level"})
+Specific Focus / Teacher Request: ${diagramPrompt || "Create an intuitive, labeled diagram illustrating the primary concept or steps."}
+
+REQUIREMENTS:
+1. The diagram MUST be a complete valid SVG string with viewBox="0 0 800 500" and xmlns="http://www.w3.org/2000/svg".
+2. Use clear, modern fonts, distinct shapes, directional flow arrows, high-contrast readable text, and educational color coding.
+3. Include title, labeled parts / callouts with clear pointers, and a bottom banner explaining the lesson concept.
+4. Return a valid JSON matching the schema.`;
+
+    const response = await generateWithRetry(ai, {
+      model: "gemini-3.8-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            caption: { type: Type.STRING },
+            diagramType: { type: Type.STRING },
+            keyLabels: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+            },
+            teachingPrompt: { type: Type.STRING },
+            svgMarkup: { type: Type.STRING, description: "Complete valid SVG code with viewBox='0 0 800 500'" },
+          },
+          required: ["title", "caption", "diagramType", "keyLabels", "teachingPrompt", "svgMarkup"],
+        },
+      },
+    });
+
+    const data = JSON.parse(response.text || "{}");
+    return res.json(data);
+  } catch (error: any) {
+    console.error("Error generating diagram:", error);
+    return res.status(500).json({
+      error: "Failed to generate diagram.",
       details: error?.message || String(error),
     });
   }

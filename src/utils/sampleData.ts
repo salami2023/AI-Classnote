@@ -7,8 +7,8 @@ export const SAMPLE_PRESETS = [
     subLevel: 'KG 2',
     subject: 'Health Habits & Literacy',
     topic: 'My Wonderful Body & Washing Hands',
-    periods: 2,
     duration: '30 mins',
+    numberOfPeriods: 2,
     content: `Parts of the body: head, eyes, ears, nose, mouth, hands, and feet.
 Why we wash our hands with soap and water: to chase away tiny germs we cannot see.
 When to wash hands: before eating food, after playing outside in the sand, and after using the toilet.
@@ -20,8 +20,8 @@ Song/Rhyme: "Wash, wash, wash your hands, make them nice and clean! Rub the top 
     subLevel: 'Basic 4',
     subject: 'Basic Science & Technology',
     topic: 'The Water Cycle and States of Matter',
-    periods: 3,
     duration: '45 mins',
+    numberOfPeriods: 3,
     content: `Three states of water: Solid (ice), Liquid (drinking water), and Gas (water vapor / steam).
 The 4 stages of the water cycle:
 1. Evaporation: The sun heats up water from rivers, lakes, and oceans. The water turns into invisible vapor and rises into the sky.
@@ -36,8 +36,8 @@ Key facts: Water never disappears; it is recycled again and again on Earth!`,
     subLevel: 'JSS 2',
     subject: 'Biology / Integrated Science',
     topic: 'Photosynthesis & Plant Nutrition',
-    periods: 2,
     duration: '60 mins',
+    numberOfPeriods: 4,
     content: `Definition: Photosynthesis is the biochemical process by which green plants manufacture their own food (glucose) using sunlight, water, and carbon dioxide in the presence of chlorophyll.
 Chemical Equation: 6CO2 + 6H2O + Sunlight -> C6H12O6 + 6O2
 Raw materials needed:
@@ -59,9 +59,10 @@ export const INITIAL_LESSON_NOTE: LessonNote = {
   academicLevel: 'primary',
   subLevel: 'Basic 4',
   duration: '45 mins',
-  periodsCount: 3,
+  numberOfPeriods: 3,
+  periodAllocationSummary: '3 Teaching Periods (45 mins each)',
   targetAgeGroup: '9 - 10 years',
-  overview: 'In this lesson, pupils learn how water moves continuously between the Earth and the sky in four simple steps: Evaporation, Condensation, Precipitation, and Collection.',
+  overview: 'In this 3-period lesson unit, pupils explore how water moves continuously between the Earth and the sky through three structured instructional sessions covering states of matter, the 4-stage cycle, and hands-on demonstrations.',
   learningObjectives: [
     'Identify the three forms of water: solid (ice), liquid (water), and gas (steam/vapor).',
     'Describe the four main stages of the water cycle in simple words.',
@@ -97,9 +98,10 @@ export const INITIAL_LESSON_NOTE: LessonNote = {
   ],
   sections: [
     {
-      period: 1,
-      periodTitle: 'Period 1: The Three States of Water',
+      periodNumber: 1,
+      periodTitle: 'Period 1: The Three Physical States of Water',
       title: 'What Are the Three States of Water?',
+      subTopics: ['Matter and physical states', 'Solid ice cubes', 'Liquid drinking water', 'Water vapor & steam'],
       explanationBulletPoints: [
         'Water is special because it can exist in three different shapes or states.',
         'Solid state: Ice cubes in the freezer are hard and hold their shape.',
@@ -110,9 +112,10 @@ export const INITIAL_LESSON_NOTE: LessonNote = {
       teacherTipOrBoardPrompt: 'Draw three simple boxes on the board: Ice cube, Water cup, and Cloud steam.',
     },
     {
-      period: 2,
+      periodNumber: 2,
       periodTitle: 'Period 2: The 4 Big Steps of the Water Cycle',
       title: 'The 4 Big Steps of the Water Cycle',
+      subTopics: ['Evaporation from solar heat', 'Condensation into clouds', 'Precipitation rain clouds', 'Collection in streams'],
       explanationBulletPoints: [
         'Step 1 (Evaporation): The hot sun shines on puddles, rivers, and seas. The water gets warm and floats up into the sky as light vapor.',
         'Step 2 (Condensation): As the water vapor climbs higher into the chilly sky, it shivers, cools down, and hugs other droplets to create fluffy white or grey clouds.',
@@ -123,16 +126,17 @@ export const INITIAL_LESSON_NOTE: LessonNote = {
       teacherTipOrBoardPrompt: 'Have students repeat with hand motions: Hands up (Evaporation), Hands together (Condensation), Wiggle fingers down (Precipitation), Hands sweep wide (Collection).',
     },
     {
-      period: 3,
-      periodTitle: 'Period 3: Why the Water Cycle Matters to Us',
+      periodNumber: 3,
+      periodTitle: 'Period 3: Ecological Importance & Hands-on Demonstration',
       title: 'Why is the Water Cycle Important to Us?',
+      subTopics: ['Nature recycling clean water', 'Supporting agriculture & crops', 'Conserving fresh water resources'],
       explanationBulletPoints: [
         'It gives clean fresh water to plants, trees, farm crops, and drinking reservoirs.',
         'It cleans our air and keeps weather temperatures balanced.',
         'The water dinosaur drank millions of years ago is the exact same water we drink today!',
       ],
       everydayAnalogyOrExample: 'Earth does not make brand new water; it is the ultimate nature recycler.',
-      teacherTipOrBoardPrompt: 'Board summary table linking Evaporation -> Cloud -> Rain -> River.',
+      teacherTipOrBoardPrompt: 'Board Prompt: Ask 3 pupils to identify where water goes after it rains on the school field.',
     },
   ],
   classActivities: [

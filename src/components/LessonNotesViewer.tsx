@@ -19,17 +19,19 @@ import {
   Save,
   Plus,
   Trash2,
+  CalendarRange,
   Layers,
 } from 'lucide-react';
-import { LessonNote, PrintSettings } from '../types';
+import { LessonNote, PrintSettings, LessonDiagram } from '../types';
 import { exportLessonNoteToWord } from '../utils/docxExport';
 import { exportToWordHTML, triggerPrint } from '../utils/printExport';
+import { LessonDiagramsSection } from './LessonDiagramsSection';
 
 interface LessonNotesViewerProps {
   note: LessonNote;
   onUpdateNote: (updated: LessonNote) => void;
   printSettings: PrintSettings;
-  onSwitchToExam?: () => void;
+  onSwitchToExam: () => void;
 }
 
 export const LessonNotesViewer: React.FC<LessonNotesViewerProps> = ({
@@ -42,21 +44,25 @@ export const LessonNotesViewer: React.FC<LessonNotesViewerProps> = ({
   const [isExportingWord, setIsExportingWord] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editBuffer, setEditBuffer] = useState<LessonNote>(note);
-  const [activePeriodFilter, setActivePeriodFilter] = useState<number | 'all'>('all');
+  const [selectedPeriod, setSelectedPeriod] = useState<number | 'all'>('all');
 
   // Sync buffer if parent note changes
   React.useEffect(() => {
     setEditBuffer(note);
     setIsEditing(false);
-    setActivePeriodFilter('all');
+    setSelectedPeriod('all');
   }, [note.id]);
 
+  // Extract distinct period numbers
+  const periodNumbers: number[] = Array.from(
+    new Set<number>(note.sections.map((s, idx) => s.periodNumber || (idx + 1)))
+  ).sort((a, b) => a - b);
+
   const handleCopy = () => {
-    const totalPeriods = note.periodsCount || note.sections.length;
     const textLines: string[] = [
       `# ${note.subject}: ${note.topic}`,
-      `School: ${printSettings.schoolName || 'Beacon Hill Schools'}`,
-      `Class Level: ${note.academicLevel.toUpperCase()} (${note.subLevel}) | Periods: ${totalPeriods} | Duration: ${note.duration}`,
+      `Class Level: ${note.academicLevel.toUpperCase()} (${note.subLevel}) | Duration: ${note.duration}`,
+      `Teaching Periods: ${note.periodAllocationSummary || `${note.numberOfPeriods || periodNumbers.length} Periods (${note.duration} each)`}`,
       ``,
       `## Overview`,
       note.overview,
@@ -69,14 +75,19 @@ export const LessonNotesViewer: React.FC<LessonNotesViewerProps> = ({
         (v) => `* **${v.term}**: ${v.simpleDefinition}${v.exampleSentence ? ` (e.g. "${v.exampleSentence}")` : ''}`
       ),
       ``,
-      `## Structured Class Notes (${totalPeriods} ${totalPeriods === 1 ? 'Period' : 'Periods'})`,
-      ...note.sections.flatMap((s, idx) => [
-        `### ${s.periodTitle || `Period ${s.period || idx + 1}: ${s.title}`}`,
-        ...s.explanationBulletPoints.map((p) => `* ${p}`),
-        s.everydayAnalogyOrExample ? `* Analogy: ${s.everydayAnalogyOrExample}` : '',
-        s.teacherTipOrBoardPrompt ? `* Board Tip: ${s.teacherTipOrBoardPrompt}` : '',
-        '',
-      ]),
+      `## Structured Class Notes (${note.numberOfPeriods || periodNumbers.length} Teaching Periods)`,
+      ...note.sections.flatMap((s, idx) => {
+        const pNum = s.periodNumber || (idx + 1);
+        const pTitle = s.periodTitle || `Period ${pNum}: ${s.title}`;
+        return [
+          `### [PERIOD ${pNum}] ${pTitle}`,
+          s.subTopics && s.subTopics.length > 0 ? `*Focus Areas: ${s.subTopics.join(', ')}*` : '',
+          ...s.explanationBulletPoints.map((p) => `* ${p}`),
+          s.everydayAnalogyOrExample ? `* Analogy: ${s.everydayAnalogyOrExample}` : '',
+          s.teacherTipOrBoardPrompt ? `* Board Prompt: ${s.teacherTipOrBoardPrompt}` : '',
+          '',
+        ];
+      }),
       `## Class Activities`,
       ...note.classActivities.flatMap((a, i) => [
         `### Activity ${i + 1}: ${a.title} (${a.activityType})`,
@@ -264,7 +275,7 @@ export const LessonNotesViewer: React.FC<LessonNotesViewerProps> = ({
           </div>
 
           {/* Metadata Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
             <div>
               <span className="text-slate-400 font-semibold block uppercase text-[10px]">
                 Subject
@@ -278,20 +289,12 @@ export const LessonNotesViewer: React.FC<LessonNotesViewerProps> = ({
               <span className="font-bold text-slate-900">{note.topic}</span>
             </div>
             <div>
-              <span className="text-slate-400 font-semibold block uppercase text-[10px] flex items-center gap-1">
-                <Layers className="w-3 h-3 text-blue-600" />
-                <span>Teaching Periods</span>
-              </span>
-              <span className="font-bold text-blue-700">
-                {note.periodsCount || note.sections.length}{' '}
-                {(note.periodsCount || note.sections.length) === 1 ? 'Period' : 'Periods'}
-              </span>
-            </div>
-            <div>
               <span className="text-slate-400 font-semibold block uppercase text-[10px]">
-                Duration (per period)
+                Teaching Allocation
               </span>
-              <span className="font-bold text-slate-900">{note.duration}</span>
+              <span className="font-bold text-blue-800">
+                {note.periodAllocationSummary || `${note.numberOfPeriods || periodNumbers.length} Periods (${note.duration || '45 mins'})`}
+              </span>
             </div>
             <div>
               <span className="text-slate-400 font-semibold block uppercase text-[10px]">
@@ -382,246 +385,164 @@ export const LessonNotesViewer: React.FC<LessonNotesViewerProps> = ({
           </div>
         )}
 
-        {/* 4. Structured Class Notes (Divided by Teaching Period) */}
+        {/* 4. Structured Class Notes (Divided by Teaching Periods) */}
         <div className="space-y-6">
-          <div className="border-b border-slate-200 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
-                <span>
-                  Structured Class Notes ({note.periodsCount || note.sections.length}{' '}
-                  {(note.periodsCount || note.sections.length) === 1 ? 'Period' : 'Periods'})
-                </span>
-              </h2>
-              <p className="text-xs text-slate-500">
-                Divided into distinct teaching periods with clear, student-friendly bullet points and board prompts.
-              </p>
-            </div>
+          <div className="border-b border-slate-200 pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-blue-600" />
+                  <span>Structured Class Notes by Period</span>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold border border-blue-200">
+                    {note.numberOfPeriods || periodNumbers.length} Teaching {note.numberOfPeriods === 1 ? 'Period' : 'Periods'}
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Discrete sequential teaching sessions with sub-topics, simple bullet-point notes, analogies, and board prompts.
+                </p>
+              </div>
 
-            {/* Interactive Period Filter Bar (Interactive screen only; prints all) */}
-            {note.sections.length > 1 && !isEditing && (
-              <div className="no-print flex items-center gap-1.5 overflow-x-auto py-1 max-w-full">
-                <span className="text-[11px] font-semibold text-slate-500 mr-1 flex items-center gap-1 shrink-0">
-                  <Layers className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Period:</span>
-                </span>
+              {/* Interactive Period Switcher Bar (Whiteboard / Projector Filter) */}
+              <div className="no-print flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200 self-start sm:self-auto shrink-0">
                 <button
                   type="button"
-                  onClick={() => setActivePeriodFilter('all')}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all shrink-0 ${
-                    activePeriodFilter === 'all'
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  onClick={() => setSelectedPeriod('all')}
+                  className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all ${
+                    selectedPeriod === 'all'
+                      ? 'bg-white text-blue-700 shadow-xs border border-slate-200'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                   }`}
                 >
-                  All ({note.sections.length})
+                  All Periods ({note.sections.length})
                 </button>
-                {note.sections.map((sec, idx) => {
-                  const pNum = sec.period || idx + 1;
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setActivePeriodFilter(pNum)}
-                      className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all shrink-0 ${
-                        activePeriodFilter === pNum
-                          ? 'bg-blue-600 text-white shadow-sm'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      Period {pNum}
-                    </button>
-                  );
-                })}
+                {periodNumbers.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setSelectedPeriod(p)}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1 ${
+                      selectedPeriod === p
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <span>Period {p}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Whiteboard / Focus Mode Notice */}
+            {selectedPeriod !== 'all' && (
+              <div className="no-print mt-2 p-2.5 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between text-xs text-blue-900 animate-in fade-in">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                  <span className="font-bold">
+                    Whiteboard Focus Mode: Period {selectedPeriod} displayed.
+                  </span>
+                  <span className="text-blue-700 hidden md:inline">
+                    Ideal for single-period classroom projectors or board copying.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPeriod('all')}
+                  className="font-bold text-blue-700 hover:text-blue-950 underline text-xs cursor-pointer ml-2"
+                >
+                  Show All Periods
+                </button>
               </div>
             )}
           </div>
 
-          {/* Sections List */}
-          {(isEditing ? editBuffer.sections : note.sections).map((section, sIdx) => {
-            const periodNum = section.period || sIdx + 1;
-            const isVisibleOnScreen =
-              isEditing || activePeriodFilter === 'all' || activePeriodFilter === periodNum;
+          {/* Section Cards */}
+          {note.sections.map((section, sIdx) => {
+            const periodNum = section.periodNumber || (sIdx + 1);
+            const isHiddenOnScreen = selectedPeriod !== 'all' && periodNum !== selectedPeriod;
 
             return (
               <div
                 key={sIdx}
-                className={`avoid-page-break bg-slate-50/80 p-4 sm:p-5 rounded-xl border border-slate-200 space-y-3.5 transition-all ${
-                  isVisibleOnScreen ? 'block' : 'hidden print:block'
+                className={`avoid-page-break bg-slate-50/80 p-5 rounded-2xl border-2 border-slate-200 hover:border-blue-300 transition-all space-y-3.5 ${
+                  isHiddenOnScreen ? 'hidden print:block print-show-period' : 'block'
                 }`}
               >
-                {/* Period Section Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-200 pb-2.5 gap-2">
+                {/* Period Header & Badge Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-200/90 gap-2">
                   <div className="flex items-center gap-2.5 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-bold bg-blue-600 text-white shadow-xs">
-                      <Clock className="w-3 h-3" />
+                    <span className="px-3 py-1 rounded-md bg-blue-600 text-white font-extrabold text-xs tracking-wider shadow-xs uppercase flex items-center gap-1">
+                      <CalendarRange className="w-3.5 h-3.5" />
                       <span>PERIOD {periodNum}</span>
                     </span>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={section.periodTitle || section.title}
-                        onChange={(e) => {
-                          const updated = [...editBuffer.sections];
-                          updated[sIdx] = {
-                            ...updated[sIdx],
-                            periodTitle: e.target.value,
-                            title: e.target.value,
-                          };
-                          setEditBuffer({ ...editBuffer, sections: updated });
-                        }}
-                        className="p-1.5 text-sm font-bold border rounded flex-1 min-w-[200px]"
-                        placeholder="Period title"
-                      />
-                    ) : (
-                      <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                        {section.periodTitle || `Period ${periodNum}: ${section.title}`}
-                      </h3>
-                    )}
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                      {section.title}
+                    </h3>
                   </div>
-
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <span className="text-[11px] font-medium text-slate-500">
-                      Section {sIdx + 1} of {(isEditing ? editBuffer.sections : note.sections).length}
-                    </span>
-                    {isEditing && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = editBuffer.sections.filter((_, i) => i !== sIdx);
-                          setEditBuffer({ ...editBuffer, sections: updated });
-                        }}
-                        className="text-red-500 hover:text-red-700 p-1"
-                        title="Delete section"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
+                  <span className="text-xs text-slate-600 font-semibold bg-white px-2.5 py-1 rounded-lg border border-slate-200 self-start sm:self-auto shadow-2xs">
+                    ⏱ {note.duration || '45 mins'}
+                  </span>
                 </div>
 
-                {/* Bullet Points */}
-                {isEditing ? (
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Teaching Explanations (one bullet point per line):
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={section.explanationBulletPoints.join('\n')}
-                      onChange={(e) => {
-                        const updated = [...editBuffer.sections];
-                        updated[sIdx] = {
-                          ...updated[sIdx],
-                          explanationBulletPoints: e.target.value
-                            .split('\n')
-                            .filter((line) => line.trim().length > 0),
-                        };
-                        setEditBuffer({ ...editBuffer, sections: updated });
-                      }}
-                      className="w-full p-2 text-xs border rounded-lg"
-                    />
-                  </div>
-                ) : (
-                  <ul className="space-y-2 text-sm text-slate-800 list-disc list-outside pl-5">
-                    {section.explanationBulletPoints.map((point, pIdx) => (
-                      <li key={pIdx} className="leading-relaxed">
-                        {point}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {/* Analogy Box */}
-                {isEditing ? (
-                  <div>
-                    <label className="block text-xs font-medium text-amber-900 mb-1">
-                      Everyday Analogy:
-                    </label>
-                    <input
-                      type="text"
-                      value={section.everydayAnalogyOrExample || ''}
-                      onChange={(e) => {
-                        const updated = [...editBuffer.sections];
-                        updated[sIdx] = {
-                          ...updated[sIdx],
-                          everydayAnalogyOrExample: e.target.value,
-                        };
-                        setEditBuffer({ ...editBuffer, sections: updated });
-                      }}
-                      className="w-full p-1.5 text-xs border border-amber-200 rounded-lg bg-amber-50"
-                      placeholder="e.g. Think of water as a shapeshifter..."
-                    />
-                  </div>
-                ) : (
-                  section.everydayAnalogyOrExample && (
-                    <div className="p-3 bg-amber-50 rounded-lg border border-amber-200 text-xs text-amber-950 flex items-start gap-2 mt-2">
-                      <span className="font-bold shrink-0">💡 Analogy:</span>
-                      <span className="leading-relaxed italic">
-                        {section.everydayAnalogyOrExample}
+                {/* Focus Areas (Sub-Topics) Chips */}
+                {section.subTopics && section.subTopics.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      Focus Areas:
+                    </span>
+                    {section.subTopics.map((st, idx) => (
+                      <span
+                        key={idx}
+                        className="text-xs bg-white text-slate-700 px-2.5 py-0.5 rounded-md border border-slate-200 font-medium shadow-2xs"
+                      >
+                        {st}
                       </span>
-                    </div>
-                  )
+                    ))}
+                  </div>
                 )}
 
-                {/* Teacher Board Tip */}
-                {isEditing ? (
-                  <div>
-                    <label className="block text-xs font-medium text-blue-900 mb-1">
-                      Board Tip / Prompt for Period {periodNum}:
-                    </label>
-                    <input
-                      type="text"
-                      value={section.teacherTipOrBoardPrompt || ''}
-                      onChange={(e) => {
-                        const updated = [...editBuffer.sections];
-                        updated[sIdx] = {
-                          ...updated[sIdx],
-                          teacherTipOrBoardPrompt: e.target.value,
-                        };
-                        setEditBuffer({ ...editBuffer, sections: updated });
-                      }}
-                      className="w-full p-1.5 text-xs border border-blue-200 rounded-lg bg-blue-50"
-                      placeholder="e.g. Draw three simple boxes on the board..."
-                    />
+                {/* Explanation Bullet Points */}
+                <ul className="space-y-2 text-sm text-slate-800 list-disc list-outside pl-5">
+                  {section.explanationBulletPoints.map((point, pIdx) => (
+                    <li key={pIdx} className="leading-relaxed">
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Everyday Analogy Callout */}
+                {section.everydayAnalogyOrExample && (
+                  <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5">
+                    <span className="font-bold shrink-0 text-amber-800">💡 Everyday Analogy:</span>
+                    <span className="leading-relaxed italic">
+                      {section.everydayAnalogyOrExample}
+                    </span>
                   </div>
-                ) : (
-                  section.teacherTipOrBoardPrompt && (
-                    <div className="p-2.5 bg-blue-50/70 rounded-lg border border-blue-200/80 text-[11px] text-blue-900 flex items-start gap-1.5">
-                      <span className="font-bold shrink-0">📋 Period {periodNum} Board Tip:</span>
-                      <span>{section.teacherTipOrBoardPrompt}</span>
-                    </div>
-                  )
+                )}
+
+                {/* Teacher Blackboard Tip / Board Prompt */}
+                {section.teacherTipOrBoardPrompt && (
+                  <div className="p-3 bg-blue-50/80 rounded-xl border border-blue-200 text-xs text-blue-950 flex items-start gap-2">
+                    <span className="font-bold shrink-0 text-blue-800">📋 Board Prompt:</span>
+                    <span className="leading-relaxed font-medium">
+                      {section.teacherTipOrBoardPrompt}
+                    </span>
+                  </div>
                 )}
               </div>
             );
           })}
+        </div>
 
-          {/* Add Section button in edit mode */}
-          {isEditing && (
-            <button
-              type="button"
-              onClick={() => {
-                const newPeriod = editBuffer.sections.length + 1;
-                const newSection = {
-                  period: newPeriod,
-                  periodTitle: `Period ${newPeriod}: Additional Concept`,
-                  title: `Additional Concept`,
-                  explanationBulletPoints: ['New explanation point for this period.'],
-                  everydayAnalogyOrExample: '',
-                  teacherTipOrBoardPrompt: '',
-                };
-                setEditBuffer({
-                  ...editBuffer,
-                  sections: [...editBuffer.sections, newSection],
-                });
-              }}
-              className="w-full py-2.5 border-2 border-dashed border-blue-300 rounded-xl text-blue-600 font-semibold text-xs flex items-center justify-center gap-1 hover:bg-blue-50"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Another Period Section</span>
-            </button>
-          )}
+        {/* Visual Lesson Aid Diagrams Section (PNG format) */}
+        <div className="avoid-page-break">
+          <LessonDiagramsSection
+            note={note}
+            onUpdateDiagrams={(diagrams: LessonDiagram[]) => {
+              const updated = { ...note, diagrams };
+              onUpdateNote(updated);
+              setEditBuffer(updated);
+            }}
+          />
         </div>
 
         {/* 5. Class Activities */}

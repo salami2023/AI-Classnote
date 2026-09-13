@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, BookOpen, Trash2, Calendar, ChevronRight, Bookmark } from 'lucide-react';
+import { X, BookOpen, Trash2, Calendar, ChevronRight, Bookmark, Image as ImageIcon } from 'lucide-react';
 import { LessonNote } from '../types';
 
 interface SavedLessonsDrawerProps {
@@ -95,6 +95,12 @@ export const SavedLessonsDrawer: React.FC<SavedLessonsDrawerProps> = ({
                           <Calendar className="w-3 h-3" />
                           <span>{formattedDate}</span>
                         </span>
+                        {note.diagrams && note.diagrams.length > 0 && (
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                            <ImageIcon className="w-2.5 h-2.5" />
+                            <span>PNG Diagram</span>
+                          </span>
+                        )}
                       </div>
                       <h4 className="font-bold text-sm text-slate-900 group-hover:text-blue-700 line-clamp-1">
                         {note.topic}

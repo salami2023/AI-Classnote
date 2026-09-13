@@ -10,12 +10,15 @@ import {
   LessonNote,
   ExamPaper,
   PrintSettings,
+  LessonDiagram,
 } from './types';
 import {
   INITIAL_LESSON_NOTE,
   INITIAL_EXAM_PAPER,
 } from './utils/sampleData';
 import { triggerPrint } from './utils/printExport';
+import { convertSvgToPng } from './utils/diagramRenderer';
+import { getEducationalDiagramForTopic } from './utils/diagramLibrary';
 import { AlertCircle, CheckCircle2, Sparkles, BookOpen } from 'lucide-react';
 
 const DEFAULT_PRINT_SETTINGS: PrintSettings = {
@@ -37,8 +40,8 @@ export default function App() {
   const [content, setContent] = useState('');
   const [academicLevel, setAcademicLevel] = useState<AcademicLevel>('primary');
   const [subLevel, setSubLevel] = useState('Basic 4');
-  const [periods, setPeriods] = useState<number>(3);
   const [duration, setDuration] = useState('45 mins');
+  const [numberOfPeriods, setNumberOfPeriods] = useState<number>(3);
   const [tone, setTone] = useState('engaging and conversational');
 
   // Generated outputs
@@ -101,6 +104,44 @@ export default function App() {
     }
   }, [savedNotes]);
 
+  // Ensure initial note has its educational PNG diagram ready
+  useEffect(() => {
+    if (!currentNote.diagrams || currentNote.diagrams.length === 0) {
+      const spec = getEducationalDiagramForTopic(
+        currentNote.topic,
+        currentNote.subject,
+        currentNote.academicLevel,
+        currentNote.subLevel
+      );
+      convertSvgToPng(spec.svgMarkup, 800, 500).then((pngBase64) => {
+        const initialDiagram: LessonDiagram = {
+          id: `diag_${Date.now()}`,
+          title: spec.title,
+          caption: spec.caption,
+          diagramType: spec.diagramType,
+          keyLabels: spec.keyLabels,
+          teachingPrompt: spec.teachingPrompt,
+          pngBase64,
+          width: 800,
+          height: 500,
+          source: 'curriculum-library',
+          createdAt: new Date().toISOString(),
+        };
+
+        setCurrentNote((prev) => ({
+          ...prev,
+          diagrams: [initialDiagram],
+        }));
+
+        setSavedNotes((prev) =>
+          prev.map((n) =>
+            n.id === currentNote.id ? { ...n, diagrams: [initialDiagram] } : n
+          )
+        );
+      });
+    }
+  }, []);
+
   // Generate Lesson Notes
   const handleGenerateNotes = async () => {
     setErrorMessage(null);
@@ -115,8 +156,8 @@ export default function App() {
           content,
           academicLevel,
           subLevel,
-          periods,
           duration,
+          numberOfPeriods,
           tone,
         }),
       });
@@ -127,17 +168,67 @@ export default function App() {
       }
 
       const data = await res.json();
+
+      // Convert educational diagram specification into a standalone high-res PNG image
+      let noteDiagrams: LessonDiagram[] = [];
+      try {
+        let svgCode = data.diagramSpec?.svgMarkup;
+        let dTitle = data.diagramSpec?.title;
+        let dCaption = data.diagramSpec?.caption;
+        let dType = data.diagramSpec?.diagramType;
+        let dLabels = data.diagramSpec?.keyLabels;
+        let dPrompt = data.diagramSpec?.teachingPrompt;
+
+        if (!svgCode || typeof svgCode !== 'string' || !svgCode.includes('<svg')) {
+          const fallbackSpec = getEducationalDiagramForTopic(
+            data.topic || topic,
+            data.subject || subject,
+            data.academicLevel || academicLevel,
+            data.subLevel || subLevel
+          );
+          svgCode = fallbackSpec.svgMarkup;
+          dTitle = dTitle || fallbackSpec.title;
+          dCaption = dCaption || fallbackSpec.caption;
+          dType = dType || fallbackSpec.diagramType;
+          dLabels = dLabels || fallbackSpec.keyLabels;
+          dPrompt = dPrompt || fallbackSpec.teachingPrompt;
+        }
+
+        const pngBase64 = await convertSvgToPng(svgCode, 800, 500);
+
+        noteDiagrams = [
+          {
+            id: `diag_${Date.now()}`,
+            title: dTitle || `${data.topic} Lesson Aid Diagram`,
+            caption: dCaption || `Visual lesson aid illustrating ${data.topic}.`,
+            diagramType: dType || 'Curriculum Schematic',
+            keyLabels: dLabels || [],
+            teachingPrompt: dPrompt || 'Classroom Discussion: Trace the diagram on the board and discuss each labeled stage with pupils.',
+            pngBase64,
+            width: 800,
+            height: 500,
+            source: data.diagramSpec?.svgMarkup ? 'gemini-svg' : 'curriculum-library',
+            createdAt: new Date().toISOString(),
+          },
+        ];
+      } catch (diagramErr) {
+        console.warn('Diagram rasterization to PNG warning:', diagramErr);
+      }
+
       const newNote: LessonNote = {
         ...data,
         id: `note-${Date.now()}`,
         createdAt: new Date().toISOString(),
         sourceContent: content,
+        numberOfPeriods: data.numberOfPeriods || numberOfPeriods,
+        periodAllocationSummary: data.periodAllocationSummary || `${data.numberOfPeriods || numberOfPeriods} Periods (${duration} each)`,
+        diagrams: noteDiagrams,
       };
 
       setCurrentNote(newNote);
       setSavedNotes((prev) => [newNote, ...prev.filter((n) => n.topic !== newNote.topic)]);
 
-      setSuccessNotice(`Structured lesson guide for "${newNote.topic}" generated successfully!`);
+      setSuccessNotice(`Structured ${newNote.numberOfPeriods || numberOfPeriods}-period lesson guide & PNG diagram for "${newNote.topic}" generated successfully!`);
       setTimeout(() => setSuccessNotice(null), 4000);
     } catch (error: any) {
       console.error('Notes generation error:', error);
@@ -212,6 +303,7 @@ export default function App() {
     setAcademicLevel(note.academicLevel);
     setSubLevel(note.subLevel);
     setDuration(note.duration);
+    if (note.numberOfPeriods) setNumberOfPeriods(note.numberOfPeriods);
     if (note.sourceContent) setContent(note.sourceContent);
   };
 
@@ -291,10 +383,10 @@ export default function App() {
                 setAcademicLevel={setAcademicLevel}
                 subLevel={subLevel}
                 setSubLevel={setSubLevel}
-                periods={periods}
-                setPeriods={setPeriods}
                 duration={duration}
                 setDuration={setDuration}
+                numberOfPeriods={numberOfPeriods}
+                setNumberOfPeriods={setNumberOfPeriods}
                 tone={tone}
                 setTone={setTone}
                 onGenerate={handleGenerateNotes}

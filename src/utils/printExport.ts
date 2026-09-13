@@ -37,6 +37,8 @@ export function exportToWordHTML(
   .homework-box { background: #fffbeb; border: 1pt solid #fde68a; padding: 10pt; margin: 10pt 0; border-radius: 4pt; }
   .exam-question { margin-bottom: 12pt; }
   .answer-key { color: #059669; font-weight: bold; }
+  img { max-width: 100%; height: auto; display: block; margin: 12pt auto; border: 1pt solid #cbd5e1; border-radius: 4pt; }
+  .figure-caption { font-style: italic; font-size: 10pt; color: #4b5563; text-align: center; margin-top: 4pt; margin-bottom: 12pt; }
 </style>
 </head>
 <body>

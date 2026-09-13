@@ -10,8 +10,20 @@ import {
   AlignmentType,
   BorderStyle,
   Packer,
+  ImageRun,
 } from 'docx';
 import { LessonNote, ExamPaper, PrintSettings } from '../types';
+
+function base64ToUint8Array(base64String: string): Uint8Array {
+  const cleanBase64 = base64String.replace(/^data:image\/\w+;base64,/, '');
+  const binaryString = atob(cleanBase64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
 
 function triggerBlobDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -117,11 +129,11 @@ export async function exportLessonNoteToWord(
           children: [
             new Paragraph({
               children: [
-                new TextRun({ text: 'Duration & Periods: ', bold: true, color: '1E3A8A' }),
+                new TextRun({ text: 'Teaching Periods: ', bold: true, color: '1E3A8A' }),
                 new TextRun({
-                  text: `${note.duration || '45 mins'} (${note.periodsCount || note.sections.length} ${
-                    (note.periodsCount || note.sections.length) === 1 ? 'Period' : 'Periods'
-                  })`,
+                  text: note.periodAllocationSummary || `${note.numberOfPeriods || note.sections.length || 1} Periods (${note.duration || '45 mins'} each)`,
+                  bold: true,
+                  color: '0369A1',
                 }),
               ],
             }),
@@ -231,9 +243,7 @@ export async function exportLessonNoteToWord(
       spacing: { before: 300, after: 120 },
       children: [
         new TextRun({
-          text: `Structured Class Notes (${note.periodsCount || note.sections.length} ${
-            (note.periodsCount || note.sections.length) === 1 ? 'Period' : 'Periods'
-          })`,
+          text: `Structured Class Notes (${note.numberOfPeriods || note.sections.length || 1} Teaching Periods)`,
           bold: true,
           color: '1E3A8A',
         }),
@@ -241,16 +251,52 @@ export async function exportLessonNoteToWord(
     })
   );
 
-  note.sections.forEach((section, idx) => {
-    const periodHeader =
-      section.periodTitle || `Period ${section.period || idx + 1}: ${section.title}`;
+  note.sections.forEach((section, sIdx) => {
+    const periodNum = section.periodNumber || (sIdx + 1);
+    const pTitle = section.periodTitle || `Period ${periodNum}: ${section.title}`;
+
+    // Period Header
     children.push(
       new Paragraph({
         heading: HeadingLevel.HEADING_3,
-        spacing: { before: 200, after: 80 },
-        children: [new TextRun({ text: periodHeader, bold: true, color: '1E40AF' })],
+        spacing: { before: 240, after: 60 },
+        children: [
+          new TextRun({
+            text: `[PERIOD ${periodNum}] `,
+            bold: true,
+            color: '1D4ED8', // blue-700
+          }),
+          new TextRun({
+            text: pTitle.startsWith(`Period ${periodNum}`) ? pTitle : `${pTitle}`,
+            bold: true,
+            color: '1F2937',
+          }),
+        ],
       })
     );
+
+    // Sub-topics if available
+    if (section.subTopics && section.subTopics.length > 0) {
+      children.push(
+        new Paragraph({
+          spacing: { after: 100 },
+          children: [
+            new TextRun({
+              text: 'Focus Areas: ',
+              bold: true,
+              size: 20,
+              color: '4B5563',
+            }),
+            new TextRun({
+              text: section.subTopics.join(' • '),
+              size: 20,
+              italics: true,
+              color: '4B5563',
+            }),
+          ],
+        })
+      );
+    }
 
     section.explanationBulletPoints.forEach((point) => {
       children.push(
@@ -265,7 +311,7 @@ export async function exportLessonNoteToWord(
     if (section.everydayAnalogyOrExample) {
       children.push(
         new Paragraph({
-          spacing: { before: 80, after: 100 },
+          spacing: { before: 80, after: 80 },
           indent: { left: 400 },
           children: [
             new TextRun({ text: '💡 Everyday Analogy: ', bold: true, color: 'D97706' }),
@@ -278,16 +324,139 @@ export async function exportLessonNoteToWord(
     if (section.teacherTipOrBoardPrompt) {
       children.push(
         new Paragraph({
-          spacing: { before: 60, after: 120 },
+          spacing: { before: 60, after: 140 },
           indent: { left: 400 },
           children: [
-            new TextRun({ text: '📋 Board Prompt: ', bold: true, color: '2563EB' }),
+            new TextRun({ text: '📋 Board Prompt: ', bold: true, color: '1E40AF' }),
             new TextRun({ text: section.teacherTipOrBoardPrompt, italics: true }),
           ],
         })
       );
     }
   });
+
+  // Visual Lesson Aid Diagrams (Embedded PNG format)
+  if (note.diagrams && note.diagrams.length > 0) {
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 300, after: 120 },
+        children: [
+          new TextRun({
+            text: 'Visual Lesson Aids & Explanatory Diagrams (PNG)',
+            bold: true,
+            color: '1E3A8A',
+          }),
+        ],
+      })
+    );
+
+    note.diagrams.forEach((diag, dIdx) => {
+      children.push(
+        new Paragraph({
+          heading: HeadingLevel.HEADING_3,
+          spacing: { before: 180, after: 80 },
+          children: [
+            new TextRun({
+              text: `Figure ${dIdx + 1}: ${diag.title}`,
+              bold: true,
+              color: '1F2937',
+            }),
+            new TextRun({
+              text: diag.diagramType ? `  [${diag.diagramType}]` : '',
+              italics: true,
+              color: '4B5563',
+              size: 20,
+            }),
+          ],
+        })
+      );
+
+      // Embed the standalone PNG image
+      if (diag.pngBase64) {
+        try {
+          const imageBytes = base64ToUint8Array(diag.pngBase64);
+          children.push(
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 120, after: 100 },
+              children: [
+                new ImageRun({
+                  type: 'png',
+                  data: imageBytes,
+                  transformation: {
+                    width: 540,
+                    height: 320,
+                  },
+                }),
+              ],
+            })
+          );
+        } catch (imgErr) {
+          console.warn('Failed to embed PNG image in DOCX:', imgErr);
+        }
+      }
+
+      if (diag.caption) {
+        children.push(
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 100 },
+            children: [
+              new TextRun({
+                text: `Figure Note: ${diag.caption}`,
+                italics: true,
+                size: 20,
+                color: '4B5563',
+              }),
+            ],
+          })
+        );
+      }
+
+      if (diag.keyLabels && diag.keyLabels.length > 0) {
+        children.push(
+          new Paragraph({
+            spacing: { before: 60, after: 40 },
+            children: [
+              new TextRun({
+                text: 'Key Diagram Labels: ',
+                bold: true,
+                size: 20,
+                color: '0369A1',
+              }),
+              new TextRun({
+                text: diag.keyLabels.join('  •  '),
+                size: 20,
+              }),
+            ],
+          })
+        );
+      }
+
+      if (diag.teachingPrompt) {
+        children.push(
+          new Paragraph({
+            spacing: { before: 40, after: 140 },
+            indent: { left: 400 },
+            children: [
+              new TextRun({
+                text: '📋 Classroom / Board Prompt: ',
+                bold: true,
+                size: 20,
+                color: 'D97706',
+              }),
+              new TextRun({
+                text: diag.teachingPrompt,
+                italics: true,
+                size: 20,
+              }),
+            ],
+          })
+        );
+      }
+    });
+  }
 
   // Class Activities
   if (note.classActivities && note.classActivities.length > 0) {

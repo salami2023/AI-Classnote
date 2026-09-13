@@ -7,9 +7,10 @@ export interface VocabularyItem {
 }
 
 export interface LessonSection {
-  period?: number;
-  periodTitle?: string;
+  periodNumber?: number; // 1, 2, 3, etc.
+  periodTitle?: string; // e.g. "Period 1: States of Matter & Molecular Structure"
   title: string;
+  subTopics?: string[];
   explanationBulletPoints: string[];
   everydayAnalogyOrExample?: string;
   teacherTipOrBoardPrompt?: string;
@@ -32,6 +33,21 @@ export interface HomeworkAssignment {
   submissionDeadlineNote?: string;
 }
 
+export interface LessonDiagram {
+  id: string;
+  title: string;
+  caption: string;
+  pngBase64: string; // PNG Data URL format: "data:image/png;base64,..." - strictly standalone PNG, NOT external links!
+  diagramType?: string; // e.g., 'Scientific Process / Cycle', 'Anatomy / Structure', 'Flowchart / Steps', 'Model / Schematic', 'Early Years Visual Aid'
+  keyLabels?: string[]; // e.g. ["1. Evaporation", "2. Condensation", "3. Precipitation", "4. Collection"]
+  teachingPrompt?: string; // Board prompt or question for students regarding this diagram
+  svgSource?: string; // Optional raw SVG markup
+  width?: number;
+  height?: number;
+  source?: string;
+  createdAt?: string;
+}
+
 export interface LessonNote {
   id: string;
   createdAt: string;
@@ -40,12 +56,14 @@ export interface LessonNote {
   academicLevel: AcademicLevel;
   subLevel: string;
   duration: string;
-  periodsCount?: number;
+  numberOfPeriods?: number; // 1 to 6 teaching periods allocated to this topic
+  periodAllocationSummary?: string; // e.g. "3 Periods (45 mins each)"
   targetAgeGroup?: string;
   overview: string;
   learningObjectives: string[];
   keyVocabulary: VocabularyItem[];
   sections: LessonSection[];
+  diagrams?: LessonDiagram[];
   classActivities: ClassActivity[];
   homework: HomeworkAssignment;
   quickSummaryChecklist: string[];

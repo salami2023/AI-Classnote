@@ -8,6 +8,7 @@ import {
   Lightbulb,
   CheckCircle2,
   RefreshCw,
+  CalendarRange,
 } from 'lucide-react';
 import { AcademicLevel } from '../types';
 import { SAMPLE_PRESETS } from '../utils/sampleData';
@@ -23,10 +24,10 @@ interface TeacherInputFormProps {
   setAcademicLevel: (val: AcademicLevel) => void;
   subLevel: string;
   setSubLevel: (val: string) => void;
-  periods: number;
-  setPeriods: (val: number) => void;
   duration: string;
   setDuration: (val: string) => void;
+  numberOfPeriods: number;
+  setNumberOfPeriods: (val: number) => void;
   tone: string;
   setTone: (val: string) => void;
   onGenerate: () => void;
@@ -44,10 +45,10 @@ export const TeacherInputForm: React.FC<TeacherInputFormProps> = ({
   setAcademicLevel,
   subLevel,
   setSubLevel,
-  periods,
-  setPeriods,
   duration,
   setDuration,
+  numberOfPeriods,
+  setNumberOfPeriods,
   tone,
   setTone,
   onGenerate,
@@ -124,10 +125,10 @@ export const TeacherInputForm: React.FC<TeacherInputFormProps> = ({
       setSubLevel(preset.subLevel);
       setSubject(preset.subject);
       setTopic(preset.topic);
-      if (preset.periods) {
-        setPeriods(preset.periods);
-      }
       setDuration(preset.duration);
+      if (preset.numberOfPeriods) {
+        setNumberOfPeriods(preset.numberOfPeriods);
+      }
       setContent(preset.content);
     }
   };
@@ -264,8 +265,8 @@ export const TeacherInputForm: React.FC<TeacherInputFormProps> = ({
           </div>
         </div>
 
-        {/* Sub-level, Periods & Duration Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        {/* Sub-level, Duration & Number of Periods Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">
               Class Grade / Sub-Level
@@ -287,49 +288,68 @@ export const TeacherInputForm: React.FC<TeacherInputFormProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center justify-between">
-              <span className="flex items-center gap-1">
-                <Layers className="w-3.5 h-3.5 text-blue-600" />
-                <span className="font-semibold text-slate-800">Number of Periods</span>
-              </span>
-              <span className="text-[10px] px-1.5 py-0.2 bg-blue-100 text-blue-700 font-bold rounded">
-                {periods} {periods === 1 ? 'Period' : 'Periods'}
-              </span>
-            </label>
-            <select
-              value={periods}
-              onChange={(e) => setPeriods(Number(e.target.value))}
-              className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-blue-300 bg-blue-50/40 text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value={1}>1 Period (Single Lesson)</option>
-              <option value={2}>2 Periods (Double Period / 2 Sections)</option>
-              <option value={3}>3 Periods (3 Teaching Sections)</option>
-              <option value={4}>4 Periods (4 Teaching Sections)</option>
-              <option value={5}>5 Periods (Full Week / 5 Sections)</option>
-              <option value={6}>6 Periods (Extended Unit / 6 Sections)</option>
-            </select>
-            <p className="text-[10px] text-slate-500 mt-1">
-              Divides notes into Period 1, Period 2, etc.
-            </p>
-          </div>
-
-          <div>
             <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5 text-slate-400" />
-              <span>Duration (per period)</span>
+              <span>Period Duration</span>
             </label>
             <select
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
               className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             >
-              <option value="30 mins">30 mins (Short nursery period)</option>
+              <option value="30 mins">30 mins (Nursery / Short)</option>
               <option value="40 mins">40 mins (Standard period)</option>
               <option value="45 mins">45 mins (Recommended)</option>
-              <option value="60 mins">60 mins (Extended single period)</option>
-              <option value="80 mins (Double Period)">80 mins (Double laboratory/practical)</option>
+              <option value="60 mins">60 mins (Extended single)</option>
+              <option value="80 mins (Double Period)">80 mins (Double practical period)</option>
             </select>
           </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1">
+                <CalendarRange className="w-3.5 h-3.5 text-blue-600" />
+                <span className="font-semibold text-slate-800">Teaching Periods</span>
+              </span>
+              <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                {numberOfPeriods} {numberOfPeriods === 1 ? 'Period' : 'Periods'}
+              </span>
+            </label>
+            <select
+              value={numberOfPeriods}
+              onChange={(e) => setNumberOfPeriods(parseInt(e.target.value) || 1)}
+              className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white font-medium text-slate-800"
+            >
+              <option value={1}>1 Period (Single Lesson)</option>
+              <option value={2}>2 Periods (Standard 2-Part Unit)</option>
+              <option value={3}>3 Periods (3-Day Unit / Week Block)</option>
+              <option value={4}>4 Periods (Comprehensive 4-Part Module)</option>
+              <option value={5}>5 Periods (Full 5-Day Teaching Week)</option>
+              <option value={6}>6 Periods (Extended Deep Dive Unit)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Quick Periods Selector Pills */}
+        <div className="flex flex-wrap items-center gap-1.5 -mt-1 p-2 bg-slate-50/80 rounded-lg border border-slate-100">
+          <span className="text-[11px] text-slate-500 font-medium mr-1 flex items-center gap-1">
+            <Layers className="w-3 h-3 text-slate-400" />
+            <span>Select Periods:</span>
+          </span>
+          {[1, 2, 3, 4, 5, 6].map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setNumberOfPeriods(p)}
+              className={`text-xs px-2.5 py-1 rounded-md font-semibold transition-all ${
+                numberOfPeriods === p
+                  ? 'bg-blue-600 text-white shadow-xs scale-102'
+                  : 'bg-white text-slate-600 hover:bg-slate-200 border border-slate-200'
+              }`}
+            >
+              {p} {p === 1 ? 'Period' : 'Periods'}
+            </button>
+          ))}
         </div>
 
         {/* Subject with Quick Suggestions */}
