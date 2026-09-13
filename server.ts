@@ -382,84 +382,120 @@ app.post("/api/generate-exams", async (req: Request, res: Response) => {
       content,
       academicLevel,
       subLevel,
-      mcqCount = 5,
-      shortAnswerCount = 3,
-      essayOrPracticalCount = 2,
+      schoolName = "BEACON HILL SCHOOLS",
+      termOrSemester = "First Term Examination",
+      academicSession = "2025/2026 Academic Session",
+      coveredTopics = [], // All topics and units from generated classnotes
+      mcqCount = 30, // 30 MCQs requested
+      theoryCount = 8, // 8 Theory questions requested
       difficulty = "standard", // 'easy' | 'standard' | 'challenging'
       customInstructions = "",
     } = req.body;
 
-    if (!subject || !topic) {
-      return res.status(400).json({ error: "Subject and Topic are required." });
+    if (!subject) {
+      return res.status(400).json({ error: "Subject is required." });
     }
 
     const ai = getAI();
+
+    // Prepare syllabus / topics scope representation
+    let topicsSummaryText = "";
+    if (Array.isArray(coveredTopics) && coveredTopics.length > 0) {
+      topicsSummaryText = `ALL COVERED TOPICS FROM GENERATED CLASS NOTES:\n` +
+        coveredTopics
+          .map((t: any, idx: number) => {
+            if (typeof t === "string") return `${idx + 1}. ${t}`;
+            return `${idx + 1}. ${t.topic || t.title}${t.subTopics?.length ? ` (Sub-topics: ${t.subTopics.join(", ")})` : ""}${t.overview ? ` - ${t.overview}` : ""}`;
+          })
+          .join("\n");
+    } else {
+      topicsSummaryText = `Primary Topic: ${topic}\nContent Overview: ${content || "Standard curriculum topics for this subject and level."}`;
+    }
 
     let levelPrompt = "";
     if (academicLevel === "nursery") {
       levelPrompt = `
 ACADEMIC LEVEL: NURSERY (Ages 3-5).
-- Questions must be oral, visual, simple identification, circling/matching, or basic true/false.
-- MCQ questions should have simple 2-3 visual/descriptive options.
-- No heavy reading required; suitable for teacher to read out loud to pupils.
+- Keep question stems simple, visual, and oral-friendly.
+- MCQ questions with 3-4 simple options (A, B, C, D).
+- Theory questions phrased as simple oral/drawing/identification prompts.
 `;
     } else if (academicLevel === "primary") {
       levelPrompt = `
 ACADEMIC LEVEL: PRIMARY (Ages 6-11).
-- Clear, simple question stems without trick wording.
-- MCQ questions with 4 distinct options (A, B, C, D).
-- Short answer questions with clear blanks or 1-2 sentence answers.
-- Simple application or drawing/labeling problems.
+- Clear, unambiguous question stems.
+- 30 Multiple Choice Questions (A, B, C, D).
+- 8 Theory questions with straightforward parts (a, b) focusing on definitions, listings, and practical primary school examples.
 `;
     } else {
       levelPrompt = `
 ACADEMIC LEVEL: SECONDARY (Ages 12-18).
-- Well-structured examination format with clear marks allocation.
-- Section A: Multiple Choice Questions test foundational knowledge and recall.
-- Section B: Short answer questions test conceptual clarity and explanation.
-- Section C: Structured / Essay / Problem-solving questions test analytical reasoning and application.
-- Include comprehensive answer keys and marking guidelines for teachers.
+- Standard WAEC / GCSE / National Curriculum examination format.
+- 30 Multiple Choice Questions testing knowledge recall, comprehension, and application.
+- 8 Structured Theory / Essay questions with sub-parts: (a), (b), (c) testing analysis, problem-solving, and explanations.
 `;
     }
 
-    const prompt = `You are a professional school examination officer and teacher.
-Generate a high quality, print-ready EXAM / ASSESSMENT PAPER based on:
+    const prompt = `You are a Senior School Examination Officer and Chief Examiner.
+You must construct an official, print-ready, curriculum-standard examination paper.
 
-Subject: ${subject}
-Topic: ${topic}
-Class / Academic Level: ${academicLevel.toUpperCase()} (${subLevel || "Standard"})
-Difficulty: ${difficulty}
-Requested Question Distribution:
-- Multiple Choice Questions (MCQs): ${mcqCount}
-- Short Answer / Fill in the blanks: ${shortAnswerCount}
-- Essay / Practical / Problem Solving: ${essayOrPracticalCount}
+HEADER PARAMETERS:
+- School: ${schoolName}
+- Subject: ${subject}
+- Primary Topic / Scope: ${topic || "Comprehensive Term Examination"}
+- Term / Session: ${termOrSemester} (${academicSession})
+- Class / Academic Level: ${academicLevel.toUpperCase()} (${subLevel || "Standard"})
+- Difficulty: ${difficulty}
 
-Curriculum Content / Notes:
-"""
-${content || "Generate relevant questions based on standard curriculum for this topic and class level."}
-"""
-Teacher Notes/Instructions: ${customInstructions || "None"}
+SYLLABUS & CONTENT SCOPE (CRITICAL):
+${topicsSummaryText}
+
+${content ? `ADDITIONAL CLASS NOTES EXCERPTS:\n"""\n${content.slice(0, 3000)}\n"""` : ""}
+${customInstructions ? `Teacher Directives: ${customInstructions}` : ""}
 
 ${levelPrompt}
 
-Generate a complete assessment with full questions, mark allocations, student instructions, and a complete Answer Key & Marking Guide.`;
+STRICT EXAM COMPILATION RULES:
+1. QUESTION QUANTITY:
+   - SECTION A: OBJECTIVE QUESTIONS must contain EXACTLY ${mcqCount} MULTIPLE CHOICE QUESTIONS (numbered sequentially 1 to ${mcqCount}). Each MCQ MUST have 4 options: A, B, C, and D, with 1 mark each. Total: ${mcqCount} marks.
+   - SECTION B: THEORY QUESTIONS must contain EXACTLY ${theoryCount} STRUCTURED / ESSAY QUESTIONS (numbered sequentially 1 to ${theoryCount}). Each question should have sub-parts e.g. (a), (b) with clear mark distribution (e.g. 8 to 10 marks per question). Total: ~70 marks.
+
+2. ABSOLUTELY NO TOPIC HEADINGS:
+   - DO NOT include topic headings, unit titles, or subject sub-headings anywhere amidst or above individual questions.
+   - Simply write out the questions sequentially under Section A (Questions 1 to ${mcqCount}) and Section B (Questions 1 to ${theoryCount}).
+
+3. BALANCED SYLLABUS COVERAGE:
+   - The questions MUST be distributed across the ENTIRE range of topics that class notes have been generated on.
+   - Every topic listed in the scope above must be tested across the 30 MCQs and 8 theory questions.
+
+4. ANSWER KEY & MARKING SCHEME:
+   - Provide the accurate correct answer for each of the ${mcqCount} MCQs (e.g. "B) ...").
+   - Provide a complete step-by-step marking guide and rubric for all ${theoryCount} theory questions.`;
 
     const response = await generateWithRetry(ai, {
       model: "gemini-3.8-flash",
       contents: prompt,
       config: {
-        systemInstruction: "You are an expert educational assessment creator. You build clean, rigorous, and level-appropriate school examinations with accurate answer keys and clear marking guides.",
+        systemInstruction: "You are an expert school examination compiler. You write rigorous, clean, and syllabus-wide school examination papers with exactly 30 MCQs and 8 theory questions, without topic subheadings.",
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            examTitle: { type: Type.STRING },
+            examTitle: { type: Type.STRING, description: "e.g. FIRST TERM EXAMINATION" },
+            schoolName: { type: Type.STRING },
+            termOrSemester: { type: Type.STRING },
+            academicSession: { type: Type.STRING },
             subject: { type: Type.STRING },
             topic: { type: Type.STRING },
+            coveredTopics: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: "List of all topics covered in this examination paper",
+            },
             academicLevel: { type: Type.STRING },
             subLevel: { type: Type.STRING },
-            timeAllowed: { type: Type.STRING },
-            totalMarks: { type: Type.INTEGER },
+            timeAllowed: { type: Type.STRING, description: "e.g. 2 Hours or 1 Hour 30 Mins" },
+            totalMarks: { type: Type.INTEGER, description: "Total marks, e.g. 100" },
             generalInstructions: {
               type: Type.ARRAY,
               items: { type: Type.STRING },
@@ -469,8 +505,8 @@ Generate a complete assessment with full questions, mark allocations, student in
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  sectionCode: { type: Type.STRING, description: "e.g. Section A, Section B, Section C" },
-                  sectionTitle: { type: Type.STRING, description: "e.g. Multiple Choice Questions, Short Answer, Essay/Structured" },
+                  sectionCode: { type: Type.STRING, description: "SECTION A or SECTION B" },
+                  sectionTitle: { type: Type.STRING, description: "OBJECTIVE QUESTIONS or THEORY QUESTIONS" },
                   instructions: { type: Type.STRING },
                   totalMarksForSection: { type: Type.INTEGER },
                   questions: {
@@ -483,7 +519,7 @@ Generate a complete assessment with full questions, mark allocations, student in
                         options: {
                           type: Type.ARRAY,
                           items: { type: Type.STRING },
-                          description: "Options formatted like ['A) Option 1', 'B) Option 2', ...], empty for non-MCQ",
+                          description: "Options formatted like ['A) ...', 'B) ...', 'C) ...', 'D) ...'] for MCQs; empty for Theory",
                         },
                         marks: { type: Type.INTEGER },
                         correctAnswer: { type: Type.STRING },
@@ -501,7 +537,6 @@ Generate a complete assessment with full questions, mark allocations, student in
           required: [
             "examTitle",
             "subject",
-            "topic",
             "academicLevel",
             "timeAllowed",
             "totalMarks",

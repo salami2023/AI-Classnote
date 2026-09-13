@@ -243,13 +243,23 @@ export default function App() {
   // Generate Exam Questions
   const handleGenerateExam = async (config: {
     mcqCount: number;
-    shortAnswerCount: number;
+    shortAnswerCount?: number;
     essayCount: number;
     difficulty: 'easy' | 'standard' | 'challenging';
   }) => {
     setErrorMessage(null);
     setIsGeneratingExams(true);
     try {
+      // Gather all topics from generated class notes
+      const notesCollection = savedNotes.length > 0 ? savedNotes : [currentNote];
+      const allCoveredTopics = notesCollection.map((n) => ({
+        topic: n.topic,
+        subject: n.subject,
+        overview: n.overview,
+        subTopics: n.sections.flatMap((s) => s.subTopics || [s.title]),
+        numberOfPeriods: n.numberOfPeriods || n.sections.length,
+      }));
+
       const res = await fetch('/api/generate-exams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -259,7 +269,14 @@ export default function App() {
           content: content || currentNote?.overview || '',
           academicLevel,
           subLevel,
-          ...config,
+          schoolName: printSettings.schoolName || 'BEACON HILL SCHOOLS',
+          termOrSemester: printSettings.termOrSemester || 'First Term Examination',
+          academicSession: printSettings.academicYear || '2025/2026 Academic Session',
+          schoolLogoUrl: printSettings.schoolLogoUrl,
+          coveredTopics: allCoveredTopics,
+          mcqCount: config.mcqCount || 30,
+          theoryCount: config.essayCount || 8,
+          difficulty: config.difficulty,
         }),
       });
 
@@ -273,12 +290,17 @@ export default function App() {
         ...data,
         id: `exam-${Date.now()}`,
         createdAt: new Date().toISOString(),
+        schoolName: data.schoolName || printSettings.schoolName,
+        schoolLogoUrl: printSettings.schoolLogoUrl,
+        termOrSemester: data.termOrSemester || printSettings.termOrSemester,
+        academicSession: data.academicSession || printSettings.academicYear,
+        coveredTopics: data.coveredTopics || allCoveredTopics.map((t) => t.topic),
         difficulty: config.difficulty,
       };
 
       setCurrentExam(newExam);
-      setSuccessNotice(`Exam paper with ${newExam.totalMarks} total marks generated!`);
-      setTimeout(() => setSuccessNotice(null), 4000);
+      setSuccessNotice(`Official 2-Page Exam Paper (30 MCQs + 8 Theory Questions) covering all topics generated!`);
+      setTimeout(() => setSuccessNotice(null), 4500);
     } catch (error: any) {
       console.error('Exam generation error:', error);
       setErrorMessage(

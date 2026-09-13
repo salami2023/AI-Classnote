@@ -92,8 +92,13 @@ export interface ExamPaper {
   id: string;
   createdAt: string;
   examTitle: string;
+  schoolName?: string;
+  schoolLogoUrl?: string;
+  termOrSemester?: string;
+  academicSession?: string;
   subject: string;
   topic: string;
+  coveredTopics?: string[]; // All topics that classnotes have been generated on
   academicLevel: AcademicLevel;
   subLevel: string;
   timeAllowed: string;
@@ -112,4 +117,5 @@ export interface PrintSettings {
   studentNameLine: boolean;
   dateLine: boolean;
   scoreBox: boolean;
+  schoolLogoUrl?: string; // Optional custom or default school crest
 }

@@ -13,6 +13,7 @@ import {
   ImageRun,
 } from 'docx';
 import { LessonNote, ExamPaper, PrintSettings } from '../types';
+import { DEFAULT_CREST_DATA_URL, svgToPngDataUrl } from './schoolLogo';
 
 function base64ToUint8Array(base64String: string): Uint8Array {
   const cleanBase64 = base64String.replace(/^data:image\/\w+;base64,/, '');
@@ -634,34 +635,76 @@ export async function exportExamToWord(
   includeAnswers: boolean = false,
   settings?: PrintSettings
 ): Promise<void> {
-  const schoolName = settings?.schoolName || 'BEACON HILL SCHOOLS';
-  const term = settings?.termOrSemester || '';
+  const schoolName = settings?.schoolName || exam.schoolName || 'BEACON HILL SCHOOLS';
+  const termOrSession = `${settings?.termOrSemester || exam.termOrSemester || 'First Term Examination'} (${settings?.academicYear || exam.academicSession || '2025/2026 Academic Session'})`;
+  const logoRaw = settings?.schoolLogoUrl || exam.schoolLogoUrl || DEFAULT_CREST_DATA_URL;
 
   const children: (Paragraph | Table)[] = [];
 
-  // Header Title
+  // Attempt to load and embed School Crest Logo
+  if (logoRaw) {
+    try {
+      let pngDataUrl = logoRaw;
+      if (logoRaw.startsWith('data:image/svg')) {
+        pngDataUrl = await svgToPngDataUrl(logoRaw, 160, 160);
+      }
+      const logoBytes = base64ToUint8Array(pngDataUrl);
+      children.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 80 },
+          children: [
+            new ImageRun({
+              data: logoBytes,
+              transformation: {
+                width: 50,
+                height: 50,
+              },
+              type: 'png',
+            } as any),
+          ],
+        })
+      );
+    } catch (err) {
+      console.warn('Could not process school logo for docx', err);
+    }
+  }
+
+  // Header Title & Academic Details
   children.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 100 },
+      spacing: { after: 60 },
       children: [
         new TextRun({
           text: schoolName.toUpperCase(),
           bold: true,
-          size: 32,
+          size: 28, // 14pt bold
           color: '1E3A8A',
         }),
       ],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { after: 160 },
+      spacing: { after: 60 },
+      children: [
+        new TextRun({
+          text: termOrSession.toUpperCase(),
+          bold: true,
+          size: 22, // 11pt bold
+          color: '374151',
+        }),
+      ],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 120 },
       children: [
         new TextRun({
           text: exam.examTitle,
           bold: true,
-          size: 26,
-          color: '1F2937',
+          size: 24, // 12pt bold
+          color: '111827',
         }),
         includeAnswers
           ? new TextRun({
@@ -675,7 +718,7 @@ export async function exportExamToWord(
     })
   );
 
-  // Student details header table (Name, Class, Date, Score)
+  // Student details header table (Name, Class, Subject, Time Allowed)
   const studentInfoRows = [
     new TableRow({
       children: [
@@ -684,7 +727,7 @@ export async function exportExamToWord(
           children: [
             new Paragraph({
               children: [
-                new TextRun({ text: 'Student Name: __________________________' }),
+                new TextRun({ text: 'Student Name: __________________________', size: 22 }),
               ],
             }),
           ],
@@ -695,7 +738,8 @@ export async function exportExamToWord(
             new Paragraph({
               children: [
                 new TextRun({
-                  text: `Class: ${exam.academicLevel.toUpperCase()} (${exam.subLevel || ''})`,
+                  text: `Class: ${exam.academicLevel.toUpperCase()} (${exam.subLevel || 'Standard'})`,
+                  size: 22,
                 }),
               ],
             }),
@@ -710,7 +754,7 @@ export async function exportExamToWord(
           children: [
             new Paragraph({
               children: [
-                new TextRun({ text: `Subject: ${exam.subject}` }),
+                new TextRun({ text: `Subject: ${exam.subject}`, bold: true, size: 22 }),
               ],
             }),
           ],
@@ -723,6 +767,7 @@ export async function exportExamToWord(
                 new TextRun({
                   text: `Time Allowed: ${exam.timeAllowed}  |  Total Marks: ${exam.totalMarks}`,
                   bold: true,
+                  size: 22,
                 }),
               ],
             }),
@@ -751,8 +796,8 @@ export async function exportExamToWord(
   if (exam.generalInstructions && exam.generalInstructions.length > 0) {
     children.push(
       new Paragraph({
-        spacing: { before: 200, after: 60 },
-        children: [new TextRun({ text: 'General Instructions:', bold: true })],
+        spacing: { before: 140, after: 40 },
+        children: [new TextRun({ text: 'General Instructions:', bold: true, size: 22 })],
       })
     );
 
@@ -760,27 +805,27 @@ export async function exportExamToWord(
       children.push(
         new Paragraph({
           bullet: { level: 0 },
-          spacing: { after: 40 },
-          children: [new TextRun({ text: inst, italics: true, size: 20 })],
+          spacing: { after: 30 },
+          children: [new TextRun({ text: inst, italics: true, size: 22 })],
         })
       );
     });
   }
 
-  children.push(new Paragraph({ spacing: { before: 140, after: 100 } }));
+  children.push(new Paragraph({ spacing: { before: 100, after: 60 } }));
 
-  // Sections
+  // Sections (Strictly NO topic headings, font size 11 = 22 half-points)
   exam.sections.forEach((sec) => {
     children.push(
       new Paragraph({
         heading: HeadingLevel.HEADING_2,
-        spacing: { before: 240, after: 80 },
+        spacing: { before: 180, after: 60 },
         children: [
           new TextRun({
             text: `${sec.sectionCode}: ${sec.sectionTitle}`,
             bold: true,
             color: '1E3A8A',
-            size: 26,
+            size: 24,
           }),
           sec.totalMarksForSection
             ? new TextRun({
@@ -797,8 +842,8 @@ export async function exportExamToWord(
     if (sec.instructions) {
       children.push(
         new Paragraph({
-          spacing: { after: 120 },
-          children: [new TextRun({ text: sec.instructions, italics: true, size: 20 })],
+          spacing: { after: 80 },
+          children: [new TextRun({ text: sec.instructions, italics: true, size: 22 })],
         })
       );
     }
@@ -806,29 +851,31 @@ export async function exportExamToWord(
     sec.questions.forEach((q) => {
       children.push(
         new Paragraph({
-          spacing: { before: 100, after: 40 },
+          spacing: { before: 70, after: 30 },
           children: [
             new TextRun({
               text: `${q.questionNumber}. ${q.questionText} `,
               bold: true,
+              size: 22, // Exact font size 11
             }),
             new TextRun({
               text: `(${q.marks} ${q.marks === 1 ? 'mark' : 'marks'})`,
               italics: true,
               color: '4B5563',
+              size: 22, // Exact font size 11
             }),
           ],
         })
       );
 
-      // Options for MCQ
+      // Options for MCQ in Font Size 11
       if (q.options && q.options.length > 0) {
         q.options.forEach((opt) => {
           children.push(
             new Paragraph({
-              indent: { left: 400 },
-              spacing: { after: 30 },
-              children: [new TextRun({ text: opt })],
+              indent: { left: 350 },
+              spacing: { after: 20 },
+              children: [new TextRun({ text: opt, size: 22 })], // Exact font size 11
             })
           );
         });
@@ -838,16 +885,17 @@ export async function exportExamToWord(
       if (includeAnswers) {
         children.push(
           new Paragraph({
-            indent: { left: 400 },
-            spacing: { before: 40, after: 80 },
+            indent: { left: 350 },
+            spacing: { before: 30, after: 60 },
             children: [
-              new TextRun({ text: 'Answer: ', bold: true, color: '059669' }),
-              new TextRun({ text: q.correctAnswer, bold: true }),
+              new TextRun({ text: 'Answer: ', bold: true, color: '059669', size: 22 }),
+              new TextRun({ text: q.correctAnswer, bold: true, size: 22 }),
               q.markingSchemeOrRubric
                 ? new TextRun({
                     text: `  |  Rubric: ${q.markingSchemeOrRubric}`,
                     italics: true,
                     color: '6B7280',
+                    size: 20,
                   })
                 : new TextRun({ text: '' }),
             ],
@@ -858,11 +906,12 @@ export async function exportExamToWord(
         if (!q.options || q.options.length === 0) {
           children.push(
             new Paragraph({
-              spacing: { after: 160 },
+              spacing: { after: 120 },
               children: [
                 new TextRun({
                   text: '____________________________________________________________________________',
                   color: 'D1D5DB',
+                  size: 22,
                 }),
               ],
             })
@@ -875,7 +924,16 @@ export async function exportExamToWord(
   const doc = new Document({
     sections: [
       {
-        properties: {},
+        properties: {
+          page: {
+            margin: {
+              top: 720, // 0.5 in = ~12.7mm
+              right: 720,
+              bottom: 720,
+              left: 720,
+            },
+          },
+        },
         children,
       },
     ],
@@ -883,7 +941,7 @@ export async function exportExamToWord(
 
   const blob = await Packer.toBlob(doc);
   const suffix = includeAnswers ? 'Teacher_Answer_Key' : 'Student_Exam_Paper';
-  const cleanFilename = `${exam.subject}_${exam.topic}_${suffix}.docx`.replace(
+  const cleanFilename = `${exam.subject}_${suffix}.docx`.replace(
     /[^a-zA-Z0-9_-]/g,
     '_'
   );

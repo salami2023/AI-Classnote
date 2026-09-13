@@ -12,7 +12,7 @@
       background-color: #ffffff !important;
       color: #0f172a !important;
       font-size: 11pt !important;
-      line-height: 1.5 !important;
+      line-height: 1.35 !important;
     }
     .printable-sheet {
       box-shadow: none !important;
@@ -29,9 +29,33 @@
     .print-show-period {
       display: block !important;
     }
+
+    /* Strict A4 Exam 2-Page Layout */
     @page {
-      margin: 1.5cm 1.5cm 1.5cm 1.5cm;
+      margin: 8mm 10mm 8mm 10mm;
       size: A4 portrait;
+    }
+
+    .exam-page-1 {
+      break-after: page !important;
+      page-break-after: always !important;
+      min-height: 270mm;
+      max-height: 280mm;
+      box-sizing: border-box;
+    }
+
+    .exam-page-2 {
+      break-before: page !important;
+      page-break-before: always !important;
+      min-height: 270mm;
+      box-sizing: border-box;
+    }
+
+    .exam-mcq-grid {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+      column-gap: 1.25rem !important;
+      row-gap: 0.35rem !important;
     }
   }
 
@@ -41,3 +65,4 @@
     }
   }
 }
+
